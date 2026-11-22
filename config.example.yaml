@@ -1,0 +1,6 @@
+# base URL of the Mastodon instance the account lives on
+server: https://mastodon.social
+# public, unlisted, private or direct; defaults to public
+visibility: public
+feeds:
+  - https://blog.golang.org/feed.atom

@@ -1,0 +1,9 @@
+# built binary
+/feedhorn
+
+# local config and state
+/config.yaml
+/state.json
+
+# local test output
+*.test

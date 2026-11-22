@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: feedhorn
+data:
+  config.yaml: |
+    server: https://mastodon.social
+    visibility: public
+    feeds:
+      - https://blog.golang.org/feed.atom

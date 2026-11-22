@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: feedhorn
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # the state is a small JSON file, most provisioners round this up anyway
+      storage: 16Mi

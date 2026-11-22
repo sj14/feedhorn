@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feedhorn
+spec:
+  # one instance only: two would post every item twice, and the volume is
+  # ReadWriteOnce, so the old pod has to stop before the new one starts
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: feedhorn
+  template:
+    metadata:
+      labels:
+        app: feedhorn
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        # makes the volume writable for the non-root user
+        fsGroup: 65532
+      containers:
+        - name: feedhorn
+          image: ghcr.io/sj14/feedhorn:main
+          env:
+            - name: CONFIG
+              value: /config/config.yaml
+            - name: STATE
+              value: /data/state.json
+            - name: INTERVAL
+              value: 15m
+            - name: MASTODON_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: feedhorn
+                  key: token
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: feedhorn
+        - name: data
+          persistentVolumeClaim:
+            claimName: feedhorn
