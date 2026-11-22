@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/sj14/feedhorn/internal/feed"
 	"github.com/sj14/feedhorn/internal/status"
 )
 
@@ -75,6 +76,55 @@ func TestLoadRejects(t *testing.T) {
 		"duplicate":      "server: https://m.example\nfeeds: [{url: https://e.example/f}, {url: https://e.example/f}]\n",
 		"visibility":     "server: https://m.example\nvisibility: everyone\nfeeds: [{url: https://e.example/f}]\n",
 		"bad template":   "server: https://m.example\nfeeds: [{url: https://e.example/f, template: '{{.Tilte}}'}]\n",
+	}
+
+	for name, content := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Load(write(t, content)); err == nil {
+				t.Fatal("want error")
+			}
+		})
+	}
+}
+
+func TestIgnores(t *testing.T) {
+	conf, err := Load(write(t, `
+server: https://mastodon.example
+feeds:
+  - url: https://example.com/feed.xml
+    ignore:
+      - link: "/shorts/"
+      - title: "(?i)trailer"
+        link: "^https://example\\.com/"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		item feed.Item
+		want bool
+	}{
+		{item: feed.Item{Title: "A film", Link: "https://www.youtube.com/watch?v=1"}, want: false},
+		{item: feed.Item{Title: "A short", Link: "https://www.youtube.com/shorts/1"}, want: true},
+		// a rule with title and link needs both to match
+		{item: feed.Item{Title: "Official Trailer", Link: "https://example.com/1"}, want: true},
+		{item: feed.Item{Title: "Official Trailer", Link: "https://other.example/1"}, want: false},
+	}
+
+	for _, tt := range tests {
+		if got := conf.Feeds[0].Ignores(tt.item); got != tt.want {
+			t.Errorf("Ignores(%+v) = %v, want %v", tt.item, got, tt.want)
+		}
+	}
+}
+
+func TestLoadRejectsIgnoreRules(t *testing.T) {
+	tests := map[string]string{
+		"empty rule":  "server: https://m.example\nfeeds: [{url: https://e.example/f, ignore: [{}]}]\n",
+		"bad title":   "server: https://m.example\nfeeds: [{url: https://e.example/f, ignore: [{title: '('}]}]\n",
+		"bad link":    "server: https://m.example\nfeeds: [{url: https://e.example/f, ignore: [{link: '('}]}]\n",
+		"typo in key": "server: https://m.example\nfeeds: [{url: https://e.example/f, ignore: [{titel: x}]}]\n",
 	}
 
 	for name, content := range tests {

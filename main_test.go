@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -165,4 +166,58 @@ func assertPosted(t *testing.T, got, want []string) {
 			t.Fatalf("post %d is %q, want %q", i, got[i], want[i])
 		}
 	}
+}
+
+func TestProcessFeedIgnores(t *testing.T) {
+	feedSrv := &fakeFeed{}
+	feedHTTP := httptest.NewServer(feedSrv)
+	defer feedHTTP.Close()
+
+	masto := &fakeMastodon{}
+	mastoHTTP := httptest.NewServer(masto)
+	defer mastoHTTP.Close()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	configText := fmt.Sprintf("server: %s\nfeeds:\n  - url: %s\n    ignore:\n      - link: /shorts/\n", mastoHTTP.URL, feedHTTP.URL)
+	if err := os.WriteFile(configPath, []byte(configText), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	conf, err := config.Load(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := relay{
+		client:    http.DefaultClient,
+		statePath: filepath.Join(dir, "state.json"),
+		retention: time.Hour,
+		known:     state.State{},
+		poster: &mastodon.Client{
+			HTTP:       http.DefaultClient,
+			Server:     mastoHTTP.URL,
+			Token:      "token",
+			Visibility: "public",
+		},
+	}
+
+	feedSrv.set("https://example.com/watch/1")
+	if err := r.processFeed(t.Context(), conf.Feeds[0]); err != nil {
+		t.Fatal(err)
+	}
+
+	feedSrv.set("https://example.com/shorts/3", "https://example.com/watch/2", "https://example.com/watch/1")
+	if err := r.processFeed(t.Context(), conf.Feeds[0]); err != nil {
+		t.Fatal(err)
+	}
+
+	assertPosted(t, masto.posted(), []string{"title of https://example.com/watch/2\n\nhttps://example.com/watch/2"})
+
+	// the ignored item is remembered, so it stays unposted even without the rule
+	if err := r.processFeed(t.Context(), config.Feed{URL: feedHTTP.URL, Status: conf.Feeds[0].Status}); err != nil {
+		t.Fatal(err)
+	}
+
+	assertPosted(t, masto.posted(), []string{"title of https://example.com/watch/2\n\nhttps://example.com/watch/2"})
 }

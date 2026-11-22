@@ -10,3 +10,9 @@ feeds:
   # a feed can override the global template
   - url: https://example.com/feed.xml
     template: "{{.Title}} #example\n\n{{.Link}}"
+  # items matching any rule are not posted; a rule takes a regular expression
+  # for the title, the link or both (then both have to match)
+  - url: https://www.youtube.com/feeds/videos.xml?channel_id=UCGkHFrwE8KEuOHPVsIOskAg
+    ignore:
+      - link: '^https://www\.youtube\.com/shorts/'
+      - title: "(?i)trailer"

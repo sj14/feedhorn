@@ -151,6 +151,9 @@ type relay struct {
 // remembered; otherwise adding a feed would flood the account with its whole
 // history. A failed post ends the feed for this round, so the remaining items
 // are retried in the next one and still come in order.
+//
+// An ignored item is remembered like a posted one, so removing the rule later
+// does not post every ignored item the feed still lists.
 func (r *relay) processFeed(ctx context.Context, feedConf config.Feed) error {
 	feedURL := feedConf.URL
 
@@ -186,6 +189,16 @@ func (r *relay) processFeed(ctx context.Context, feedConf config.Feed) error {
 
 	for _, item := range items {
 		if knownIDs[item.ID] {
+			continue
+		}
+
+		if feedConf.Ignores(item) {
+			slog.Info("ignored", "feed", feedURL, "title", item.Title, "link", item.Link)
+
+			knownIDs[item.ID] = true
+			entries = append(entries, state.Entry{ID: item.ID, LastSeen: now})
+			r.known[feedURL] = entries
+
 			continue
 		}
 

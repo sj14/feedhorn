@@ -62,6 +62,24 @@ A post longer than 500 characters, Mastodon's default limit, is cut off at the
 end with `…` and logged as a warning. That can cut the link, so a warning means
 the template should be shorter.
 
+### Ignoring items
+
+A feed can list rules for items that are not posted. Each rule holds a
+regular expression ([Go syntax](https://pkg.go.dev/regexp/syntax)) for the
+`title`, the `link` or both; with both, an item is only ignored if both match.
+An item is ignored if any rule matches.
+
+```yaml
+feeds:
+  - url: https://www.youtube.com/feeds/videos.xml?channel_id=UCGkHFrwE8KEuOHPVsIOskAg
+    ignore:
+      - link: '^https://www\.youtube\.com/shorts/' # YouTube links Shorts like this
+      - title: "(?i)trailer"
+```
+
+An ignored item is remembered like a posted one, so removing a rule later does
+not post the ignored items the feed still lists.
+
 ## State
 
 `state.json` holds the IDs of the known items per feed (the GUID, or the link
