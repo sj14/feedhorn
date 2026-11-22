@@ -8,16 +8,29 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"text/template"
 
 	"github.com/goccy/go-yaml"
+	"github.com/sj14/feedhorn/internal/status"
 )
 
 type Config struct {
 	// Server is the base URL of the Mastodon instance, e.g. https://mastodon.social.
 	Server string `yaml:"server"`
 	// Visibility of the posts: public, unlisted, private or direct.
-	Visibility string   `yaml:"visibility"`
-	Feeds      []string `yaml:"feeds"`
+	Visibility string `yaml:"visibility"`
+	// Template is the text of a post for every feed that sets none itself.
+	Template string `yaml:"template"`
+	Feeds    []Feed `yaml:"feeds"`
+}
+
+type Feed struct {
+	URL string `yaml:"url"`
+	// Template overrides the global template for this feed.
+	Template string `yaml:"template"`
+
+	// Status is the parsed template, set by Load.
+	Status *template.Template `yaml:"-"`
 }
 
 const defaultVisibility = "public"
@@ -39,11 +52,28 @@ func Load(path string) (Config, error) {
 		config.Visibility = defaultVisibility
 	}
 
+	if config.Template == "" {
+		config.Template = status.Default
+	}
+
 	// the API paths are appended to the server, a trailing slash would double it
 	config.Server = strings.TrimSuffix(config.Server, "/")
 
 	if err := config.validate(); err != nil {
 		return Config{}, err
+	}
+
+	for i := range config.Feeds {
+		feed := &config.Feeds[i]
+
+		if feed.Template == "" {
+			feed.Template = config.Template
+		}
+
+		feed.Status, err = status.Parse(feed.Template)
+		if err != nil {
+			return Config{}, fmt.Errorf("feed %q: %w", feed.URL, err)
+		}
 	}
 
 	return config, nil
@@ -69,10 +99,14 @@ func (c Config) validate() error {
 	// every new item twice
 	seen := make(map[string]bool, len(c.Feeds))
 	for _, feed := range c.Feeds {
-		if seen[feed] {
-			return fmt.Errorf("feed %q is listed twice", feed)
+		if feed.URL == "" {
+			return errors.New("feed without url")
 		}
-		seen[feed] = true
+
+		if seen[feed.URL] {
+			return fmt.Errorf("feed %q is listed twice", feed.URL)
+		}
+		seen[feed.URL] = true
 	}
 
 	return nil

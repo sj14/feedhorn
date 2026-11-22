@@ -17,6 +17,7 @@ import (
 	"github.com/sj14/feedhorn/internal/feed"
 	"github.com/sj14/feedhorn/internal/mastodon"
 	"github.com/sj14/feedhorn/internal/state"
+	"github.com/sj14/feedhorn/internal/status"
 )
 
 const userAgent = "feedhorn (+https://github.com/sj14/feedhorn)"
@@ -81,8 +82,8 @@ func main() {
 	// a feed that was removed from the config and added back later should
 	// count as new, instead of posting everything it published meanwhile
 	configured := make(map[string]bool, len(conf.Feeds))
-	for _, feedURL := range conf.Feeds {
-		configured[feedURL] = true
+	for _, feedConf := range conf.Feeds {
+		configured[feedConf.URL] = true
 	}
 
 	for feedURL := range known {
@@ -113,13 +114,13 @@ func main() {
 	slog.Info("started", "feeds", len(conf.Feeds), "interval", *updateInterval)
 
 	for {
-		for _, feedURL := range conf.Feeds {
-			if err := r.processFeed(ctx, feedURL); err != nil {
+		for _, feedConf := range conf.Feeds {
+			if err := r.processFeed(ctx, feedConf); err != nil {
 				if ctx.Err() != nil {
 					break
 				}
 
-				slog.Error("failed processing feed", "feed", feedURL, "err", err)
+				slog.Error("failed processing feed", "feed", feedConf.URL, "err", err)
 			}
 		}
 
@@ -150,7 +151,9 @@ type relay struct {
 // remembered; otherwise adding a feed would flood the account with its whole
 // history. A failed post ends the feed for this round, so the remaining items
 // are retried in the next one and still come in order.
-func (r *relay) processFeed(ctx context.Context, feedURL string) error {
+func (r *relay) processFeed(ctx context.Context, feedConf config.Feed) error {
+	feedURL := feedConf.URL
+
 	items, err := feed.Fetch(ctx, r.client, userAgent, feedURL)
 	if err != nil {
 		return err
@@ -186,8 +189,16 @@ func (r *relay) processFeed(ctx context.Context, feedURL string) error {
 			continue
 		}
 
-		status := mastodon.Status(item.Title, item.Link)
-		if err := r.poster.Post(ctx, status, idempotencyKey(feedURL, item.ID)); err != nil {
+		text, truncated, err := status.Render(feedConf.Status, item)
+		if err != nil {
+			return fmt.Errorf("render %q: %w", item.ID, err)
+		}
+
+		if truncated {
+			slog.Warn("post too long, cut off at the end; shorten the template", "feed", feedURL, "link", item.Link)
+		}
+
+		if err := r.poster.Post(ctx, text, idempotencyKey(feedURL, item.ID)); err != nil {
 			return fmt.Errorf("post %q: %w", item.ID, err)
 		}
 

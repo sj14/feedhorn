@@ -10,12 +10,6 @@ import (
 	"strings"
 )
 
-// Mastodon's default limit. Other servers may allow more, but none allow less.
-const maxCharacters = 500
-
-// Mastodon counts every link as this many characters, whatever its length.
-const linkCharacters = 23
-
 type Client struct {
 	HTTP       *http.Client
 	Server     string
@@ -55,31 +49,4 @@ func (c *Client) Post(ctx context.Context, status, idempotencyKey string) error 
 	}
 
 	return nil
-}
-
-// Status builds the text of a post: the title, a blank line and the link. A
-// title too long for the limit is cut off with an ellipsis; the link is kept
-// whole since it always counts the same.
-func Status(title, link string) string {
-	if link == "" {
-		return truncate(title, maxCharacters)
-	}
-
-	if title == "" {
-		return link
-	}
-
-	separator := "\n\n"
-	budget := maxCharacters - linkCharacters - len(separator)
-
-	return truncate(title, budget) + separator + link
-}
-
-func truncate(text string, limit int) string {
-	runes := []rune(text)
-	if len(runes) <= limit {
-		return text
-	}
-
-	return string(runes[:limit-1]) + "…"
 }

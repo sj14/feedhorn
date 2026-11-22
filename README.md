@@ -2,7 +2,8 @@
 
 Posts new items of RSS, Atom and JSON feeds to a Mastodon account. It runs as
 a daemon, checks every feed at a fixed interval and posts what is new, oldest
-first, as the title followed by the link.
+first. The text of a post is a template, by default the title followed by the
+link.
 
 ## Quick start
 
@@ -25,8 +26,11 @@ items the feed lists. From then on, every new item is posted once.
 ```yaml
 server: https://mastodon.social
 visibility: public # public, unlisted, private or direct
+template: "{{.Title}}\n\n{{.Link}}" # optional, this is the default
 feeds:
-  - https://blog.golang.org/feed.atom
+  - url: https://blog.golang.org/feed.atom
+  - url: https://example.com/feed.xml
+    template: "{{.Title}} #example\n\n{{.Link}}" # overrides the global one
 ```
 
 Unknown fields are rejected, so a typo fails at startup instead of silently
@@ -45,6 +49,18 @@ Every flag can also be set through the environment:
 
 The token is only read from the environment, so it never shows up in the
 process list.
+
+### Template
+
+The template is a Go [text/template](https://pkg.go.dev/text/template) and
+gets the fields `{{.Title}}` and `{{.Link}}` of the item. Leading and trailing
+whitespace of the result is removed, so an item without title or link does not
+start or end with a blank line. A template that does not parse or names an
+unknown field fails at startup.
+
+A post longer than 500 characters, Mastodon's default limit, is cut off at the
+end with `…` and logged as a warning. That can cut the link, so a warning means
+the template should be shorter.
 
 ## State
 

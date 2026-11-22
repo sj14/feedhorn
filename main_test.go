@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sj14/feedhorn/internal/config"
 	"github.com/sj14/feedhorn/internal/mastodon"
 	"github.com/sj14/feedhorn/internal/state"
+	"github.com/sj14/feedhorn/internal/status"
 )
 
 // fakeFeed serves an RSS feed whose items can be changed between rounds.
@@ -101,11 +103,18 @@ func TestProcessFeed(t *testing.T) {
 		}
 	}
 
+	tmpl, err := status.Parse(status.Default)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	feedConf := config.Feed{URL: feedHTTP.URL, Status: tmpl}
+
 	r := newRelay()
 
 	// first round only remembers the existing items
 	feedSrv.set("https://example.com/2", "https://example.com/1")
-	if err := r.processFeed(t.Context(), feedHTTP.URL); err != nil {
+	if err := r.processFeed(t.Context(), feedConf); err != nil {
 		t.Fatal(err)
 	}
 
@@ -115,7 +124,7 @@ func TestProcessFeed(t *testing.T) {
 
 	// two new items are posted oldest first
 	feedSrv.set("https://example.com/4", "https://example.com/3", "https://example.com/2", "https://example.com/1")
-	if err := r.processFeed(t.Context(), feedHTTP.URL); err != nil {
+	if err := r.processFeed(t.Context(), feedConf); err != nil {
 		t.Fatal(err)
 	}
 
@@ -128,7 +137,7 @@ func TestProcessFeed(t *testing.T) {
 	// a failed post is retried in the next round
 	feedSrv.set("https://example.com/5", "https://example.com/4", "https://example.com/3")
 	masto.setFailing(true)
-	if err := r.processFeed(t.Context(), feedHTTP.URL); err == nil {
+	if err := r.processFeed(t.Context(), feedConf); err == nil {
 		t.Fatal("want error while mastodon fails")
 	}
 
@@ -136,7 +145,7 @@ func TestProcessFeed(t *testing.T) {
 
 	// a restart reads the state from disk and posts only the missing item
 	r = newRelay()
-	if err := r.processFeed(t.Context(), feedHTTP.URL); err != nil {
+	if err := r.processFeed(t.Context(), feedConf); err != nil {
 		t.Fatal(err)
 	}
 

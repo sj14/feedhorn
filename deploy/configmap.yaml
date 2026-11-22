@@ -7,4 +7,4 @@ data:
     server: https://mastodon.social
     visibility: public
     feeds:
-      - https://blog.golang.org/feed.atom
+      - url: https://blog.golang.org/feed.atom

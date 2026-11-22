@@ -2,5 +2,11 @@
 server: https://mastodon.social
 # public, unlisted, private or direct; defaults to public
 visibility: public
+# text of a post, filled with {{.Title}} and {{.Link}} of the item;
+# defaults to the title, a blank line and the link
+template: "{{.Title}}\n\n{{.Link}}"
 feeds:
-  - https://blog.golang.org/feed.atom
+  - url: https://blog.golang.org/feed.atom
+  # a feed can override the global template
+  - url: https://example.com/feed.xml
+    template: "{{.Title}} #example\n\n{{.Link}}"
