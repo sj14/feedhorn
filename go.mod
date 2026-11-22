@@ -9,6 +9,6 @@ require (
 
 require (
 	github.com/mmcdole/goxpp/v2 v2.0.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 )
